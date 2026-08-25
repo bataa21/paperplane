@@ -467,6 +467,48 @@
     transform:translate(-50%,-50%) scale(.95);
   }
 }
+/* =========================================================
+   GAME TOUCH CONTROL — prevent scroll / pull-to-refresh
+   ========================================================= */
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+}
+
+body {
+  position: fixed;
+  inset: 0;
+}
+
+/* Swiping belongs to the game, not to the browser */
+#game-wrapper,
+#game {
+  overscroll-behavior: none !important;
+}
+
+#game {
+  touch-action: none !important;
+}
+
+/* UI controls still behave like normal tappable buttons */
+#header,
+#header *,
+#footer,
+#footer *,
+#controls,
+#controls *,
+#practice-controls,
+#practice-controls *,
+.completion-overlay,
+.completion-overlay *,
+.hall-of-fame-overlay,
+.hall-of-fame-overlay * {
+  touch-action: manipulation !important;
+}
 
 
 </style>
@@ -1339,7 +1381,15 @@ function setupTouchControls(){
   if (touchControlsInitialized) return;
   touchControlsInitialized = true;
 
-  let sx = null, sy = null, uiTouch = false;
+  let sx=null, sy=null, uiTouch=false;
+let swipeActive=false;
+document.addEventListener('touchcancel', () => {
+  sx=null;
+  sy=null;
+  uiTouch=false;
+  swipeActive=false;
+});
+swipeActive=true;
   let lockedSwipeTarget = null;
   const MIN_SWIPE = 24;
 
@@ -1362,6 +1412,17 @@ function setupTouchControls(){
     sx = x; sy = y;
     lockedSwipeTarget = getCurrentSwipeTarget();
   }, { passive:true });
+  document.addEventListener('touchmove', (e) => {
+  if (!swipeActive) return;
+
+  /*
+    Critical:
+    stop Chrome/Samsung Internet from turning our game swipe
+    into page scrolling or pull-to-refresh.
+  */
+  e.preventDefault();
+
+}, { passive:false });
 
   document.addEventListener('touchend', (e) => {
     if (uiTouch || sx==null || sy==null) { uiTouch=false; lockedSwipeTarget=null; return; }
