@@ -473,15 +473,18 @@
 
 html,
 body {
-  width: 100%;
-  height: 100%;
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
   overflow: hidden !important;
-  overscroll-behavior: none !important;
+  overscroll-behavior-x: none !important;
+  overscroll-behavior-y: none !important;
 }
 
 body {
-  position: fixed;
-  inset: 0;
+  position: fixed !important;
+  inset: 0 !important;
 }
 
 /* Swiping belongs to the game, not to the browser */
@@ -1381,15 +1384,10 @@ function setupTouchControls(){
   if (touchControlsInitialized) return;
   touchControlsInitialized = true;
 
-  let sx=null, sy=null, uiTouch=false;
-let swipeActive=false;
-document.addEventListener('touchcancel', () => {
-  sx=null;
-  sy=null;
-  uiTouch=false;
-  swipeActive=false;
-});
-swipeActive=true;
+  let sx = null;
+  let sy = null;
+  let uiTouch = false;
+  let swipeActive = false;
   let lockedSwipeTarget = null;
   const MIN_SWIPE = 24;
 
@@ -1399,48 +1397,93 @@ swipeActive=true;
     '#controls','#practice-controls','#language-btn','#sfx-btn','#help-btn'
   ].join(',');
 
-  document.addEventListener('touchstart', (e) => {
-    if (e.touches.length > 1) return;     // ignore multi-touch
-    uiTouch = !!e.target.closest(UI_SELECTOR);
-    if (uiTouch) { sx = sy = null; lockedSwipeTarget = null; return; }
+  function resetTouchState(){
+    sx = null;
+    sy = null;
+    uiTouch = false;
+    swipeActive = false;
+    lockedSwipeTarget = null;
+  }
 
-    const x = e.touches[0].clientX, y = e.touches[0].clientY;
-    if (!isInsidePlayfield(x, y)) {        // must start in playfield
-      sx = sy = null; lockedSwipeTarget = null; uiTouch = true; 
+  document.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1) {
+      resetTouchState();
       return;
     }
-    sx = x; sy = y;
+
+    /* Normal UI buttons/tappable overlays must keep their normal tap behavior. */
+    uiTouch = !!e.target.closest(UI_SELECTOR);
+    if (uiTouch) {
+      sx = null;
+      sy = null;
+      swipeActive = false;
+      lockedSwipeTarget = null;
+      return;
+    }
+
+    const touch = e.touches[0];
+    const x = touch.clientX;
+    const y = touch.clientY;
+
+    /* A game swipe must begin inside the actual playfield. */
+    if (!isInsidePlayfield(x, y)) {
+      resetTouchState();
+      return;
+    }
+
+    /*
+      Claim the gesture immediately.
+      This is essential on real Android Chrome/Samsung devices: waiting until
+      touchmove can allow pull-to-refresh or page scrolling to start first.
+    */
+    e.preventDefault();
+
+    sx = x;
+    sy = y;
+    swipeActive = true;
+
+    /* Lock the answer at gesture start so a moving plane cannot reverse
+       at an edge halfway through the player's swipe. */
     lockedSwipeTarget = getCurrentSwipeTarget();
-  }, { passive:true });
+  }, { passive:false });
+
   document.addEventListener('touchmove', (e) => {
-  if (!swipeActive) return;
+    if (!swipeActive) return;
 
-  /*
-    Critical:
-    stop Chrome/Samsung Internet from turning our game swipe
-    into page scrolling or pull-to-refresh.
-  */
-  e.preventDefault();
-
-}, { passive:false });
+    /* Keep the entire vertical/horizontal gesture inside the game. */
+    e.preventDefault();
+  }, { passive:false });
 
   document.addEventListener('touchend', (e) => {
-    if (uiTouch || sx==null || sy==null) { uiTouch=false; lockedSwipeTarget=null; return; }
+    if (!swipeActive || uiTouch || sx == null || sy == null) {
+      resetTouchState();
+      return;
+    }
 
-    const ex = e.changedTouches[0].clientX;
-    const ey = e.changedTouches[0].clientY;
-    const dx = ex - sx, dy = ey - sy;
-    sx = sy = null; uiTouch=false;
+    /* Prevent the end of the gesture from being interpreted by the page. */
+    e.preventDefault();
 
-    if (Math.hypot(dx, dy) < MIN_SWIPE) { lockedSwipeTarget=null; return; } // ignore taps
+    const touch = e.changedTouches[0];
+    const ex = touch.clientX;
+    const ey = touch.clientY;
+    const dx = ex - sx;
+    const dy = ey - sy;
+    const targetAtStart = lockedSwipeTarget;
+
+    resetTouchState();
+
+    if (Math.hypot(dx, dy) < MIN_SWIPE) return;
 
     const dir = Math.abs(dx) > Math.abs(dy)
       ? (dx > 0 ? "→" : "←")
       : (dy > 0 ? "↓" : "↑");
 
-    checkSwipe(dir, lockedSwipeTarget);
-    lockedSwipeTarget = null;
-  });
+    checkSwipe(dir, targetAtStart);
+  }, { passive:false });
+
+  document.addEventListener('touchcancel', () => {
+    resetTouchState();
+  }, { passive:true });
 }
 
 /* Desktop mouse + keyboard */
