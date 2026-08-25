@@ -40,8 +40,32 @@
   /* Header */
   #header{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:15px 20px;font-size:18px;color:#333;background:rgba(255,255,255,.9);border-bottom:1px solid #e0e0e0;z-index:100}
   #controls{display:flex;gap:10px;margin-left:15px}
-  #pause-btn,#restart-btn{width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.9);border:2px solid #1e88e5;color:#1e88e5;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.2s}
-  #pause-btn:hover,#restart-btn:hover{background:#1e88e5;color:#fff}
+  #pause-btn,#restart-btn,#home-btn{width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.9);border:2px solid #1e88e5;color:#1e88e5;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.2s}
+  #pause-btn:hover,#restart-btn:hover,#home-btn:hover{background:#1e88e5;color:#fff}
+
+
+  /* Home / Quit */
+  .quit-card{max-width:340px!important;}
+  .quit-card p{margin:0 0 20px;line-height:1.45;color:#444;}
+  .quit-actions{display:flex;justify-content:center;gap:12px;}
+  .quit-actions button{border:0;border-radius:50px;padding:11px 22px;font-size:16px;cursor:pointer;}
+  #quit-cancel{background:#e0e0e0;color:#222;}
+  #quit-ok{background:#f44336;color:#fff;}
+
+  /* Narrow phones: keep every header control visible on one row. */
+  @media (max-width:560px){
+    #header{padding:10px 8px;font-size:14px;gap:5px;}
+    #time,#score,#score-meter{white-space:nowrap;}
+    #controls{gap:5px;margin-left:3px;align-items:center;}
+    #pause-btn,#restart-btn,#home-btn{width:34px;height:34px;min-width:34px;font-size:15px;}
+    #language-btn,#sfx-btn,#help-btn{margin-left:0!important;padding:2px 6px!important;min-width:34px;height:34px;font-size:12px!important;}
+  }
+  @media (max-width:430px){
+    #header{padding:8px 5px;font-size:12px;gap:3px;}
+    #controls{gap:3px;margin-left:1px;}
+    #pause-btn,#restart-btn,#home-btn{width:30px;height:30px;min-width:30px;font-size:13px;border-width:1.5px;}
+    #language-btn,#sfx-btn,#help-btn{min-width:30px;height:30px;padding:1px 4px!important;font-size:11px!important;}
+  }
 
   /* Planes */
   #planes-container{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)}
@@ -344,6 +368,7 @@
       <div id="controls">
         <button id="pause-btn" title="Pause">⏸</button>
         <button id="restart-btn" title="Restart">↻</button>
+        <button id="home-btn" title="Home">⌂</button>
         <button id="language-btn" style="margin-left:10px;padding:2px 8px;font-size:12px;">MN/EN</button>
         <!-- help & sfx buttons are injected via JS so you don’t need to edit HTML -->
       </div>
@@ -471,7 +496,12 @@ const translations = {
     pointingExample: "POINTING",
     movingExample: "MOVING",
     blueLabel: "Blue plane's",
-    yellowLabel: "Yellow plane's"
+    yellowLabel: "Yellow plane's",
+    homeTooltip: "Home / Quit",
+    quitTitle: "Quit game?",
+    quitMessage: "Your current game will end and you will return to the home screen.",
+    cancel: "Cancel",
+    quit: "Quit"
   },
   MN: {
     howToPlay: "Тоглох заавар",
@@ -512,7 +542,12 @@ const translations = {
     pointingExample: "ЧИГЛЭЛ",
     movingExample: "ХӨДӨЛГӨӨН",
     blueLabel: "Хөх онгоцны",
-    yellowLabel: "Шар онгоцны"
+    yellowLabel: "Шар онгоцны",
+    homeTooltip: "Нүүр / Гарах",
+    quitTitle: "Тоглоомоос гарах уу?",
+    quitMessage: "Одоогийн тоглолт дуусаж, эхлэх дэлгэц рүү буцна.",
+    cancel: "Болих",
+    quit: "Гарах"
   }
 };
 
@@ -623,6 +658,8 @@ function updateUIText(){
  /* update help tooltip + welcome overlay text if present */
  const helpBtn=document.getElementById('help-btn');
  if(helpBtn) helpBtn.title = t.helpTooltip;
+ const homeBtn=document.getElementById('home-btn');
+ if(homeBtn) homeBtn.title = t.homeTooltip;
  const ws=document.getElementById('welcome-screen');
  if(ws){
    const title=ws.querySelector('.welcome-title');
@@ -1019,7 +1056,41 @@ function startMainGame(){
   };
 }
 
-function setupGameControls(){document.getElementById("pause-btn").onclick=togglePause;document.getElementById("restart-btn").onclick=restartGame;document.getElementById("end-practice-btn").onclick=endTutorial;}
+function setupGameControls(){
+ const pause=document.getElementById("pause-btn"), restart=document.getElementById("restart-btn"), home=document.getElementById("home-btn"), end=document.getElementById("end-practice-btn");
+ if(pause) pause.onclick=togglePause;
+ if(restart) restart.onclick=restartGame;
+ if(home) home.onclick=showQuitConfirmation;
+ if(end) end.onclick=endTutorial;
+}
+
+function returnHome(){
+ playUiClick();
+ clearInterval(gameInterval); clearInterval(phaseInterval); cancelAnimationFrame(animationId);
+ gameStarted=false; isPaused=false; tutorialMode=false; phaseChanging=false; handlingSwipe=false;
+ if(currentFeedback){clearTimeout(currentFeedback.timeout);currentFeedback.element.remove();currentFeedback=null;}
+ if(activeFeedback){clearTimeout(activeFeedback.timeout);activeFeedback.element.remove();activeFeedback=null;}
+ document.querySelectorAll('.feedback-icon,.countdown-overlay,.completion-overlay,.hall-of-fame-overlay,#start-button,#quit-confirm-overlay').forEach(el=>el.remove());
+ const pc=document.getElementById('practice-controls'); if(pc) pc.style.display='none';
+ const rc=document.getElementById('round-counter'); if(rc) rc.style.display='none';
+ const pause=document.getElementById('pause-btn'); if(pause) pause.textContent='⏸';
+ document.getElementById('game').classList.remove('overlay-open');
+ showWelcomeScreen();
+}
+
+function showQuitConfirmation(){
+ playUiClick();
+ if(document.getElementById('quit-confirm-overlay')) return;
+ const wasPaused=isPaused;
+ if(gameStarted && !isPaused){ isPaused=true; cancelAnimationFrame(animationId); }
+ const t=translations[currentLang];
+ const ov=document.createElement('div');
+ ov.id='quit-confirm-overlay'; ov.className='completion-overlay';
+ ov.innerHTML=`<div class="completion-content quit-card"><h2>${t.quitTitle}</h2><p>${t.quitMessage}</p><div class="quit-actions"><button id="quit-cancel">${t.cancel}</button><button id="quit-ok">${t.quit}</button></div></div>`;
+ document.getElementById('game').appendChild(ov);
+ document.getElementById('quit-cancel').onclick=()=>{playUiClick();ov.remove();if(gameStarted && !wasPaused){isPaused=false;animateMovement();}};
+ document.getElementById('quit-ok').onclick=returnHome;
+}
 function togglePause(){isPaused=!isPaused;document.getElementById("pause-btn").textContent=isPaused?"▶":"⏸";if(isPaused)cancelAnimationFrame(animationId);else animateMovement();}
 function restartGame(){
  document.getElementById('game').classList.remove('overlay-open');
