@@ -282,6 +282,72 @@
   }
 }
 
+/* =========================================================
+   MOBILE HALL OF FAME — FIT TITLE + 6 SCORES + BUTTON
+   Fix for shorter phone browser viewports (e.g. Galaxy A51)
+   ========================================================= */
+@media (max-width: 699px) {
+  .hall-of-fame-overlay{
+    overflow:hidden !important;
+    padding:12px !important;
+    box-sizing:border-box !important;
+  }
+
+  .hof-content{
+    width:min(350px, 90%) !important;
+    max-width:90% !important;
+    height:auto !important;
+    max-height:calc(100% - 24px) !important;
+    overflow:hidden !important;
+    padding:18px 20px !important;
+    border-radius:18px !important;
+    box-sizing:border-box !important;
+    display:flex !important;
+    flex-direction:column !important;
+    justify-content:center !important;
+  }
+
+  .hof-title{
+    font-size:24px !important;
+    line-height:1.12 !important;
+    margin:0 0 12px !important;
+    flex-shrink:0 !important;
+  }
+
+  .score-list{
+    margin:0 !important;
+    padding:0 !important;
+    font-size:18px !important;
+    flex-shrink:0 !important;
+  }
+
+  .score-item{
+    min-height:0 !important;
+    padding:8px 11px !important;
+    margin:5px 0 !important;
+    border-radius:9px !important;
+  }
+
+  .score-value{font-size:20px !important;}
+  .trophy-icon{font-size:20px !important;}
+
+  .hof-play-again{
+    margin:14px auto 0 !important;
+    padding:10px 24px !important;
+    font-size:16px !important;
+    flex-shrink:0 !important;
+  }
+}
+
+/* Extra safety for unusually short mobile browser viewports. */
+@media (max-width:699px) and (max-height:700px) {
+  .hof-content{padding:14px 18px !important;}
+  .hof-title{font-size:22px !important;margin-bottom:8px !important;}
+  .score-item{padding:6px 10px !important;margin:4px 0 !important;}
+  .score-value{font-size:18px !important;}
+  .hof-play-again{margin-top:10px !important;padding:8px 22px !important;}
+}
+
 /* ===== Phase-change signal ===== */
 .phase-change-signal{
   position:absolute;
