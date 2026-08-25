@@ -348,6 +348,70 @@
   .hof-play-again{margin-top:10px !important;padding:8px 22px !important;}
 }
 
+
+/* =========================================================
+   V14 MOBILE EDGE-TO-EDGE + HALL OF FAME CLOSE BUTTON
+   ========================================================= */
+@media (max-width: 699px) {
+  html, body{
+    width:100% !important;
+    margin:0 !important;
+    padding:0 !important;
+    overflow-x:hidden !important;
+  }
+
+  /* Remove the gray side gutters on phones only. */
+  #game-wrapper{
+    width:100vw !important;
+    max-width:none !important;
+    margin-left:0 !important;
+    margin-right:0 !important;
+    border-radius:0 !important;
+    box-shadow:none !important;
+  }
+}
+
+.hof-content{
+  position:relative !important;
+}
+
+.hof-close{
+  position:absolute;
+  top:8px;
+  right:9px;
+  width:34px;
+  height:34px;
+  border:0;
+  border-radius:50%;
+  background:transparent;
+  color:#fff;
+  font-size:28px;
+  line-height:32px;
+  font-weight:400;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  z-index:3;
+  opacity:.92;
+}
+.hof-close:hover,
+.hof-close:focus-visible{
+  background:rgba(255,255,255,.14);
+  outline:none;
+}
+@media (max-width:699px){
+  .hof-close{
+    top:5px;
+    right:6px;
+    width:38px;
+    height:38px;
+    font-size:30px;
+  }
+  /* Give the title a little clearance from the X without increasing card height. */
+  .hof-title{padding-left:20px !important;padding-right:20px !important;}
+}
+
 /* ===== Phase-change signal ===== */
 .phase-change-signal{
   position:absolute;
@@ -973,9 +1037,10 @@ function showCongratulations(){
 function showHighScoreList(){
  const ov=document.createElement("div"); ov.className="hall-of-fame-overlay"; const t=translations[currentLang];
  let list=''; for(let i=0;i<highScores.length;i++){const cur=isNewHighScore&&i===highScorePosition;list+=`<li class="score-item ${cur?'new-highscore':''}"><span class="score-rank">${i+1}.</span><span class="score-value">${highScores[i]}</span>${cur?'<i class="fas fa-trophy trophy-icon"></i>':''}</li>`;}
- ov.innerHTML=`<div class="hof-content"><h2 class="hof-title">${t.hallOfFame}</h2><ul class="score-list">${list}</ul><button class="hof-play-again" id="hof-play-again">${t.playAgain}</button></div>`;
+ ov.innerHTML=`<div class="hof-content"><button class="hof-close" id="hof-close" type="button" aria-label="Close" title="Close">×</button><h2 class="hof-title">${t.hallOfFame}</h2><ul class="score-list">${list}</ul><button class="hof-play-again" id="hof-play-again">${t.playAgain}</button></div>`;
  document.getElementById("game").appendChild(ov);
  document.getElementById('hof-play-again').addEventListener('click',()=>{playUiClick();ov.remove();document.getElementById('game').classList.remove('overlay-open');restartGame();});
+ document.getElementById('hof-close').addEventListener('click',returnHome);
  refreshHofTexts();
 
 }
@@ -1262,12 +1327,20 @@ function showEndCountdown(){
 /* Input handling */
 function getRandomDirection(){return ["→","↓","←","↑"][Math.floor(Math.random()*4)];}
 
+/* Lock the intended answer when a gesture begins so a moving yellow plane
+   cannot reverse at an edge halfway through the user's swipe. */
+function getCurrentSwipeTarget(){
+  const opposites={"→":"←","←":"→","↑":"↓","↓":"↑"};
+  return currentPhase==="blue" ? opposites[pointingDirection] : movingDirection;
+}
+
 /* Touch (added once) */
 function setupTouchControls(){
   if (touchControlsInitialized) return;
   touchControlsInitialized = true;
 
   let sx = null, sy = null, uiTouch = false;
+  let lockedSwipeTarget = null;
   const MIN_SWIPE = 24;
 
   const UI_SELECTOR = [
@@ -1279,31 +1352,33 @@ function setupTouchControls(){
   document.addEventListener('touchstart', (e) => {
     if (e.touches.length > 1) return;     // ignore multi-touch
     uiTouch = !!e.target.closest(UI_SELECTOR);
-    if (uiTouch) { sx = sy = null; return; }
+    if (uiTouch) { sx = sy = null; lockedSwipeTarget = null; return; }
 
     const x = e.touches[0].clientX, y = e.touches[0].clientY;
     if (!isInsidePlayfield(x, y)) {        // must start in playfield
-      sx = sy = null; uiTouch = true; 
+      sx = sy = null; lockedSwipeTarget = null; uiTouch = true; 
       return;
     }
     sx = x; sy = y;
+    lockedSwipeTarget = getCurrentSwipeTarget();
   }, { passive:true });
 
   document.addEventListener('touchend', (e) => {
-    if (uiTouch || sx==null || sy==null) { uiTouch=false; return; }
+    if (uiTouch || sx==null || sy==null) { uiTouch=false; lockedSwipeTarget=null; return; }
 
     const ex = e.changedTouches[0].clientX;
     const ey = e.changedTouches[0].clientY;
     const dx = ex - sx, dy = ey - sy;
     sx = sy = null; uiTouch=false;
 
-    if (Math.hypot(dx, dy) < MIN_SWIPE) return; // ignore taps
+    if (Math.hypot(dx, dy) < MIN_SWIPE) { lockedSwipeTarget=null; return; } // ignore taps
 
     const dir = Math.abs(dx) > Math.abs(dy)
       ? (dx > 0 ? "→" : "←")
       : (dy > 0 ? "↓" : "↑");
 
-    checkSwipe(dir);
+    checkSwipe(dir, lockedSwipeTarget);
+    lockedSwipeTarget = null;
   });
 }
 
@@ -1313,19 +1388,21 @@ function setupDesktopControls(){
   desktopControlsInitialized = true;
 
   // Mouse swipe
-  let md=false, mx=0, my=0;
+  let md=false, mx=0, my=0, mouseSwipeTarget=null;
   document.addEventListener('mousedown', e=>{
     if (e.target.closest('#controls, #welcome-screen, .completion-overlay, .hall-of-fame-overlay, #tutorial-screen, #practice-controls'))
       return;
     if (!isInsidePlayfield(e.clientX, e.clientY)) return;
     md=true; mx=e.clientX; my=e.clientY;
+    mouseSwipeTarget=getCurrentSwipeTarget();
   });
   document.addEventListener('mouseup', e=>{
     if(!md) return; md=false;
     const dx=e.clientX-mx, dy=e.clientY-my;
-    if(Math.hypot(dx,dy) < 20) return;
+    if(Math.hypot(dx,dy) < 20){ mouseSwipeTarget=null; return; }
     const dir = Math.abs(dx)>Math.abs(dy) ? (dx>0?"→":"←") : (dy>0?"↓":"↑");
-    checkSwipe(dir);
+    checkSwipe(dir, mouseSwipeTarget);
+    mouseSwipeTarget=null;
   });
 
   // Arrow keys
@@ -1371,10 +1448,9 @@ function renderFeedback(isCorrect){
 }
 
 /* Swipe logic */
-function checkSwipe(swipeDir){
+function checkSwipe(swipeDir, lockedTarget=null){
   if(phaseChanging) return;
- const opposites={"→":"←","←":"→","↑":"↓","↓":"↑"};
- const target = currentPhase==="blue" ? opposites[pointingDirection] : movingDirection;
+ const target = lockedTarget || getCurrentSwipeTarget();
  const isCorrect = swipeDir===target;
 
  renderFeedback(isCorrect);
