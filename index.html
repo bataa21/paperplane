@@ -514,6 +514,97 @@ body {
 }
 
 
+
+/* =========================================================
+   V15 iPHONE / SAFARI VISUAL VIEWPORT FIX
+   Keep the game inside the actually visible Safari area so
+   the bottom toolbar cannot cover the footer controls.
+   ========================================================= */
+@media (max-width:699px){
+  html.is-ios-safari,
+  html.is-ios-safari body{
+    height:var(--ios-visible-height, 100svh) !important;
+    min-height:var(--ios-visible-height, 100svh) !important;
+    max-height:var(--ios-visible-height, 100svh) !important;
+  }
+
+  html.is-ios-safari body{
+    position:fixed !important;
+    inset:0 !important;
+    overflow:hidden !important;
+    align-items:center !important;
+  }
+
+  html.is-ios-safari #game-wrapper{
+    width:100vw !important;
+    height:var(--ios-visible-height, 100svh) !important;
+    min-height:0 !important;
+    max-height:var(--ios-visible-height, 100svh) !important;
+    aspect-ratio:auto !important;
+    border-radius:0 !important;
+    box-shadow:none !important;
+  }
+
+  html.is-ios-safari #game{
+    width:100% !important;
+    height:100% !important;
+  }
+
+  /* Keep the footer above the iPhone home-indicator safe area. */
+  html.is-ios-safari #footer{
+    padding-bottom:max(10px, env(safe-area-inset-bottom)) !important;
+  }
+
+  /* The iPhone 13 is too narrow for the old one-row header sizes.
+     Compact only the phone header; desktop and larger phones stay unchanged. */
+  html.is-ios-safari #header{
+    flex-wrap:nowrap !important;
+    padding:7px 4px !important;
+    gap:2px !important;
+    font-size:10px !important;
+  }
+
+  html.is-ios-safari #time,
+  html.is-ios-safari #score,
+  html.is-ios-safari #score-meter{
+    white-space:nowrap !important;
+    flex:0 0 auto !important;
+  }
+
+  html.is-ios-safari #controls{
+    flex-wrap:nowrap !important;
+    gap:2px !important;
+    margin-left:auto !important;
+    min-width:0 !important;
+  }
+
+  html.is-ios-safari #pause-btn,
+  html.is-ios-safari #restart-btn,
+  html.is-ios-safari #home-btn{
+    width:26px !important;
+    height:26px !important;
+    min-width:26px !important;
+    font-size:12px !important;
+    border-width:1.5px !important;
+  }
+
+  html.is-ios-safari #language-btn,
+  html.is-ios-safari #sfx-btn,
+  html.is-ios-safari #help-btn,
+  html.is-ios-safari #install-btn{
+    margin-left:0 !important;
+    min-width:26px !important;
+    width:auto !important;
+    height:26px !important;
+    padding:1px 5px !important;
+    font-size:10px !important;
+  }
+
+  html.is-ios-safari .direction-label{
+    padding:5px 9px !important;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -1578,6 +1669,44 @@ function checkSwipe(swipeDir, lockedTarget=null){
  }
 }
 // mark desktop once and on resize so the CSS above activates
+
+
+/* ===== V15 iPhone / Safari visible viewport =====
+   iOS Safari can report a layout viewport taller than the area that is
+   actually visible while its bottom toolbar is open.  Use VisualViewport
+   so the game always ends above Safari's toolbar. */
+function initIOSVisualViewportFix(){
+  const ua = navigator.userAgent || '';
+  const isiOS = /iPad|iPhone|iPod/.test(ua) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isSafari = /Safari/i.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS/i.test(ua);
+
+  if (!isiOS || !isSafari) return;
+
+  document.documentElement.classList.add('is-ios-safari');
+
+  const update = () => {
+    const vv = window.visualViewport;
+    const height = vv ? vv.height : window.innerHeight;
+    if (height > 0) {
+      document.documentElement.style.setProperty(
+        '--ios-visible-height',
+        `${Math.round(height)}px`
+      );
+    }
+  };
+
+  update();
+  window.addEventListener('resize', update, {passive:true});
+  window.addEventListener('orientationchange', () => setTimeout(update, 120), {passive:true});
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', update, {passive:true});
+    window.visualViewport.addEventListener('scroll', update, {passive:true});
+  }
+}
+
+initIOSVisualViewportFix();
+
 function applyDesktopClass(){
   const desktop = window.matchMedia('(hover:hover) and (pointer:fine)').matches || window.innerWidth >= 1000;
   document.documentElement.classList.toggle('is-desktop', desktop);
