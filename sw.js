@@ -1,5 +1,5 @@
 /* ===== Paper Plane Service Worker ===== */
-const CACHE_VERSION = 'paperplane-v16';
+const CACHE_VERSION = 'paperplane-v17';
 
 const CORE_ASSETS = [
   './',

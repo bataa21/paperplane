@@ -1238,10 +1238,25 @@ function stopCurrentModeBeforeSwitch(){
 
   isPaused=false;
   gameStarted=false;
+  tutorialMode=false;
   phaseChanging=false;
+  handlingSwipe=false;
 
-  document.querySelectorAll('.phase-change-signal,.feedback-icon,.meter-feedback,.countdown-overlay,#start-button')
-    .forEach(el=>el.remove());
+  document.querySelectorAll(
+    '.phase-change-signal,.feedback-icon,.meter-feedback,.countdown-overlay,#start-button,.completion-overlay,.hall-of-fame-overlay'
+  ).forEach(el=>el.remove());
+
+  /* Critical mode-switch cleanup: Practice UI/planes must never leak into
+     the Main Game start screen, and vice versa. */
+  const pc=document.getElementById('practice-controls');
+  if(pc) pc.style.display='none';
+  const rc=document.getElementById('round-counter');
+  if(rc) rc.style.display='none';
+  const planes=document.getElementById('planes-container');
+  if(planes){
+    planes.innerHTML='';
+    planes.style.transform='translate(-50%,-50%)';
+  }
 
   const pauseBtn=document.getElementById('pause-btn');
   if(pauseBtn) pauseBtn.textContent='⏸';
@@ -1347,6 +1362,13 @@ function startTutorialGame(){
  clearInterval(gameInterval); clearInterval(phaseInterval);
  if(phaseChangeTimer){clearTimeout(phaseChangeTimer);phaseChangeTimer=null;}
  cancelAnimationFrame(animationId);
+
+ /* Always start Practice from a clean visual state. */
+ document.querySelectorAll('#start-button,.countdown-overlay,.completion-overlay,.hall-of-fame-overlay,.phase-change-signal').forEach(el=>el.remove());
+ const planes=document.getElementById('planes-container');
+ if(planes){ planes.innerHTML=''; planes.style.transform='translate(-50%,-50%)'; }
+ const rc=document.getElementById('round-counter'); if(rc) rc.style.display='none';
+
  isPaused=false; gameStarted=false; phaseChanging=false;
  const pauseBtn=document.getElementById('pause-btn'); if(pauseBtn) pauseBtn.textContent='⏸';
  tutorialMode=true; let roundsCompleted=0; const MAX_ROUNDS=2;
@@ -1394,6 +1416,14 @@ function startMainGame(){
   clearInterval(gameInterval); clearInterval(phaseInterval);
   if(phaseChangeTimer){clearTimeout(phaseChangeTimer);phaseChangeTimer=null;}
   cancelAnimationFrame(animationId);
+
+  /* Main Game must never inherit Practice controls or old planes. */
+  const pc=document.getElementById('practice-controls'); if(pc) pc.style.display='none';
+  const rc=document.getElementById('round-counter'); if(rc) rc.style.display='none';
+  const planes=document.getElementById('planes-container');
+  if(planes){ planes.innerHTML=''; planes.style.transform='translate(-50%,-50%)'; }
+  document.querySelectorAll('#start-button,.phase-change-signal').forEach(el=>el.remove());
+
   isPaused=false; gameStarted=false; phaseChanging=false;
   const pauseBtn=document.getElementById('pause-btn'); if(pauseBtn) pauseBtn.textContent='⏸';
   document.getElementById('game').classList.remove('overlay-open');
@@ -1447,13 +1477,14 @@ function showQuitConfirmation(){
  playUiClick();
  if(document.getElementById('quit-confirm-overlay')) return;
  const wasPaused=isPaused;
- if(gameStarted && !isPaused){ isPaused=true; cancelAnimationFrame(animationId); }
+ const hadActiveMode=!!(gameStarted || tutorialMode);
+ if(hadActiveMode && !isPaused){ isPaused=true; cancelAnimationFrame(animationId); }
  const t=translations[currentLang];
  const ov=document.createElement('div');
  ov.id='quit-confirm-overlay'; ov.className='completion-overlay';
  ov.innerHTML=`<div class="completion-content quit-card"><h2>${t.quitTitle}</h2><p>${t.quitMessage}</p><div class="quit-actions"><button id="quit-cancel">${t.cancel}</button><button id="quit-ok">${t.quit}</button></div></div>`;
  document.getElementById('game').appendChild(ov);
- document.getElementById('quit-cancel').onclick=()=>{playUiClick();ov.remove();if(gameStarted && !wasPaused){isPaused=false;animateMovement();}};
+ document.getElementById('quit-cancel').onclick=()=>{playUiClick();ov.remove();if(hadActiveMode && !wasPaused){isPaused=false;if(document.querySelector('#planes-container .plane')) animateMovement();}};
  document.getElementById('quit-ok').onclick=returnHome;
 }
 function togglePause(){isPaused=!isPaused;document.getElementById("pause-btn").textContent=isPaused?"▶":"⏸";if(isPaused)cancelAnimationFrame(animationId);else animateMovement();}
