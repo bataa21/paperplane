@@ -707,6 +707,12 @@ let desktopControlsInitialized=false;
 let handlingSwipe=false; // debounce
 /* Phase-change protection */
 let phaseChanging=false;
+let phaseChangeTimer=null;
+
+/* Help/tutorial overlay pause state.
+   Opening ? during Play or Practice must freeze the game behind it. */
+let helpOverlayHadActiveGame=false;
+let helpOverlayWasPaused=false;
 
 const PHASE_SIGNAL_DURATION=800;
 
@@ -1140,7 +1146,7 @@ function addTutorialCloseButton(){
   if(!t || t.querySelector('.tutorial-close')) return;
   const b=document.createElement('button');
   b.className='tutorial-close'; b.textContent='×'; b.title='Close';
-  b.onclick=()=>{ t.style.display='none'; };
+  b.onclick=()=>{ closeTutorialScreen(true); };
   t.appendChild(b);
 }
 
@@ -1182,24 +1188,96 @@ function showHighScoreList(){
 }
 
 /* Flow */
+function pauseGameForTutorialOverlay(){
+  /* A practice session uses tutorialMode; a normal game uses gameStarted. */
+  helpOverlayHadActiveGame = !!(gameStarted || tutorialMode);
+  helpOverlayWasPaused = isPaused;
+
+  if(helpOverlayHadActiveGame && !isPaused){
+    isPaused = true;
+    cancelAnimationFrame(animationId);
+    const pauseBtn=document.getElementById('pause-btn');
+    if(pauseBtn) pauseBtn.textContent='▶';
+  }
+
+  /* If the blue/yellow change signal is in its 0.8 s transition,
+     freeze that too instead of letting it complete behind the Help screen. */
+  if(phaseChangeTimer){
+    clearTimeout(phaseChangeTimer);
+    phaseChangeTimer=null;
+  }
+  document.querySelectorAll('.phase-change-signal').forEach(el=>el.remove());
+  phaseChanging=false;
+}
+
+function closeTutorialScreen(resumePrevious=true){
+  const t=document.getElementById('tutorial-screen');
+  if(t) t.style.display='none';
+
+  if(resumePrevious && helpOverlayHadActiveGame && !helpOverlayWasPaused){
+    isPaused=false;
+    const pauseBtn=document.getElementById('pause-btn');
+    if(pauseBtn) pauseBtn.textContent='⏸';
+
+    /* Resume plane movement only when planes actually exist. */
+    if(document.querySelector('#planes-container .plane')){
+      cancelAnimationFrame(animationId);
+      animateMovement();
+    }
+  }
+
+  helpOverlayHadActiveGame=false;
+  helpOverlayWasPaused=false;
+}
+
+function stopCurrentModeBeforeSwitch(){
+  clearInterval(gameInterval);
+  clearInterval(phaseInterval);
+  if(phaseChangeTimer){ clearTimeout(phaseChangeTimer); phaseChangeTimer=null; }
+  cancelAnimationFrame(animationId);
+
+  isPaused=false;
+  gameStarted=false;
+  phaseChanging=false;
+
+  document.querySelectorAll('.phase-change-signal,.feedback-icon,.meter-feedback,.countdown-overlay,#start-button')
+    .forEach(el=>el.remove());
+
+  const pauseBtn=document.getElementById('pause-btn');
+  if(pauseBtn) pauseBtn.textContent='⏸';
+}
+
 function showTutorialScreen(){
-  const t = document.getElementById("tutorial-screen");
-  t.style.display = "flex";
+  const t = document.getElementById('tutorial-screen');
+  if(!t || t.style.display==='flex') return;
+
+  /* Critical fix: Help is a modal. Freeze Play/Practice BEFORE showing it. */
+  pauseGameForTutorialOverlay();
+  t.style.display = 'flex';
 
   addTutorialCloseButton();
+  updateUIText();
 
-  updateUIText();           // ✅ NEW: translate overlay to current language
-
-  // (optional if you added the arrow-keys hint)
   if (typeof ensureDesktopHint === 'function') ensureDesktopHint();
 
-  document.getElementById("start-tutorial").onclick = () => {
-    t.style.display = "none"; updateUIText(); startTutorialGame();
+  document.getElementById('start-tutorial').onclick = () => {
+    /* Choosing Practice from Help starts a fresh practice session,
+       so do not resume the old game behind it. */
+    closeTutorialScreen(false);
+    stopCurrentModeBeforeSwitch();
+    updateUIText();
+    startTutorialGame();
   };
-  document.getElementById("skip-tutorial").onclick = () => {
-    t.style.display = "none"; updateUIText(); startMainGame();
+
+  document.getElementById('skip-tutorial').onclick = () => {
+    /* Choosing Main Game from Help starts a fresh main-game start screen. */
+    closeTutorialScreen(false);
+    stopCurrentModeBeforeSwitch();
+    updateUIText();
+    startMainGame();
   };
 }
+
 function changePhaseWithSignal(){
 
   if(isPaused || phaseChanging) return;
@@ -1240,9 +1318,17 @@ function changePhaseWithSignal(){
     but swipes are ignored.
   */
 
-  setTimeout(()=>{
+  phaseChangeTimer=setTimeout(()=>{
 
+    phaseChangeTimer=null;
     signal.remove();
+
+    /* If something paused the game during the transition, do not
+       silently change phase behind a modal. */
+    if(isPaused){
+      phaseChanging=false;
+      return;
+    }
 
     currentPhase=nextPhase;
 
@@ -1258,6 +1344,11 @@ function changePhaseWithSignal(){
 
 
 function startTutorialGame(){
+ clearInterval(gameInterval); clearInterval(phaseInterval);
+ if(phaseChangeTimer){clearTimeout(phaseChangeTimer);phaseChangeTimer=null;}
+ cancelAnimationFrame(animationId);
+ isPaused=false; gameStarted=false; phaseChanging=false;
+ const pauseBtn=document.getElementById('pause-btn'); if(pauseBtn) pauseBtn.textContent='⏸';
  tutorialMode=true; let roundsCompleted=0; const MAX_ROUNDS=2;
  document.getElementById("practice-controls").style.display="block";
  currentPhase="blue"; pointingDirection=getRandomDirection(); movingDirection=getRandomDirection();
@@ -1300,6 +1391,11 @@ function endTutorial(){
 
 /* Main Game */
 function startMainGame(){
+  clearInterval(gameInterval); clearInterval(phaseInterval);
+  if(phaseChangeTimer){clearTimeout(phaseChangeTimer);phaseChangeTimer=null;}
+  cancelAnimationFrame(animationId);
+  isPaused=false; gameStarted=false; phaseChanging=false;
+  const pauseBtn=document.getElementById('pause-btn'); if(pauseBtn) pauseBtn.textContent='⏸';
   document.getElementById('game').classList.remove('overlay-open');
   if(currentFeedback){clearTimeout(currentFeedback.timeout);currentFeedback.element.remove();currentFeedback=null;}
   if(activeFeedback){clearTimeout(activeFeedback.timeout);activeFeedback.element.remove();activeFeedback=null;}
@@ -1333,7 +1429,9 @@ function setupGameControls(){
 
 function returnHome(){
  playUiClick();
- clearInterval(gameInterval); clearInterval(phaseInterval); cancelAnimationFrame(animationId);
+ clearInterval(gameInterval); clearInterval(phaseInterval);
+ if(phaseChangeTimer){clearTimeout(phaseChangeTimer);phaseChangeTimer=null;}
+ cancelAnimationFrame(animationId);
  gameStarted=false; isPaused=false; tutorialMode=false; phaseChanging=false; handlingSwipe=false;
  if(currentFeedback){clearTimeout(currentFeedback.timeout);currentFeedback.element.remove();currentFeedback=null;}
  if(activeFeedback){clearTimeout(activeFeedback.timeout);activeFeedback.element.remove();activeFeedback=null;}
@@ -1368,7 +1466,9 @@ function restartGame(){
  if(tutorialMode) document.getElementById("practice-controls").style.display="block";
 
  scoreMeter=0; scoreMultiplier=1;
- clearInterval(gameInterval); clearInterval(phaseInterval); cancelAnimationFrame(animationId);
+ clearInterval(gameInterval); clearInterval(phaseInterval);
+ if(phaseChangeTimer){clearTimeout(phaseChangeTimer);phaseChangeTimer=null;}
+ cancelAnimationFrame(animationId);
  isPaused=false; score=0; timeLeft=60; currentPhase="blue"; pointingDirection="→"; movingDirection="↓";
  document.getElementById("pause-btn").textContent="⏸"; updateHeader(); updateFooter();
 
