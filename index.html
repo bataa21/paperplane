@@ -26,7 +26,8 @@
   #game{position:relative;width:100%;height:100%;background:#f0f8ff;overflow:hidden}
 
   /* Tutorial overlay (kept, but hidden on load via JS) */
-  #tutorial-screen{position:fixed;inset:0;background:rgba(0,0,0,.8);display:flex;justify-content:center;align-items:center;z-index:2000}
+  #tutorial-screen{position:fixed;inset:0;background:rgba(0,0,0,.8);display:flex;justify-content:center;align-items:center;z-index:8000;pointer-events:auto}
+  /* V19: Welcome Help must sit above the Welcome completion overlay. */
   .tutorial-content{background:#fff;padding:30px;border-radius:15px;max-width:400px;text-align:center;position:relative}
   .tutorial-text{margin:20px 0;text-align:left}
   .example{padding:10px;margin:10px 0;background:rgba(30,136,229,.1);border-left:4px solid #1e88e5}
@@ -160,6 +161,21 @@
   font-size:14px;
   opacity:.75;
 }
+.welcome-howto{
+  display:inline-block;
+  margin-top:12px;
+  padding:3px 10px;
+  border:0;
+  background:transparent;
+  color:#444;
+  font-size:14px;
+  line-height:1.25;
+  text-decoration:underline;
+  text-underline-offset:3px;
+  cursor:pointer;
+}
+.welcome-howto:hover{color:#1e88e5}
+.welcome-howto:focus-visible{outline:2px solid #1e88e5;outline-offset:3px;border-radius:6px}
 
 
   /* make the game wide and not “phone thin” */
@@ -928,8 +944,6 @@ function updateUIText(){
  if(endBtn) endBtn.textContent=t.endPractice;
 
  /* update help tooltip + welcome overlay text if present */
- const helpBtn=document.getElementById('help-btn');
- if(helpBtn) helpBtn.title = t.helpTooltip;
  const homeBtn=document.getElementById('home-btn');
  if(homeBtn) homeBtn.title = t.homeTooltip;
  const ws=document.getElementById('welcome-screen');
@@ -937,11 +951,11 @@ function updateUIText(){
    const title=ws.querySelector('.welcome-title');
    const bPlay=ws.querySelector('#welcome-play');
    const bPractice=ws.querySelector('#welcome-practice');
-   const hint=ws.querySelector('.welcome-hint');
+   const bHowTo=ws.querySelector('#welcome-howto');
    if(title) title.textContent=t.welcomeTitle;
    if(bPlay) bPlay.textContent=t.play;
    if(bPractice) bPractice.textContent=t.practiceShort;
-   if(hint) hint.textContent=t.helpHint;
+   if(bHowTo) bHowTo.textContent=t.howToPlay;
  }
 
  if(window.currentEndOverlay && document.body.contains(window.currentEndOverlay)){
@@ -1082,19 +1096,6 @@ function initSfxButton(){
   controls.appendChild(btn);
 }
 
-/* NEW: Help (?) button */
-function initHelpButton(){
-  const controls=document.getElementById('controls');
-  if(!controls || document.getElementById('help-btn')) return;
-  const btn=document.createElement('button');
-  btn.id='help-btn';
-  btn.style.cssText='margin-left:10px;padding:2px 8px;font-size:12px;';
-  btn.textContent='?';
-  btn.title=translations[currentLang].helpTooltip;
-  btn.addEventListener('click',()=>{ showTutorialScreen(); });
-  controls.appendChild(btn);
-}
-
 /* NEW: Welcome overlay */
 function showWelcomeScreen(){
   const t = translations[currentLang];
@@ -1123,7 +1124,7 @@ function showWelcomeScreen(){
         </button>
       </div>
 
-      <div class="welcome-hint">${t.helpHint}</div>
+      <button id="welcome-howto" class="welcome-howto" type="button">${t.howToPlay}</button>
     </div>`;
 
   document.getElementById('game').appendChild(ov);
@@ -1137,6 +1138,13 @@ function showWelcomeScreen(){
     playUiClick();
     ov.remove();
     startTutorialGame();
+  };
+
+  document.getElementById('welcome-howto').onclick = () => {
+    playUiClick();
+    /* Keep the Welcome screen underneath. Closing the instructions returns
+       exactly to this screen; choosing Practice/Main Game replaces it cleanly. */
+    showTutorialScreen();
   };
 }
 
@@ -1266,7 +1274,8 @@ function showTutorialScreen(){
   const t = document.getElementById('tutorial-screen');
   if(!t || t.style.display==='flex') return;
 
-  /* Critical fix: Help is a modal. Freeze Play/Practice BEFORE showing it. */
+  /* Instructions are launched from the Welcome screen. The pause helper is
+     harmless here and also protects us if this function is reused later. */
   pauseGameForTutorialOverlay();
   t.style.display = 'flex';
 
@@ -1616,7 +1625,7 @@ function setupTouchControls(){
   const UI_SELECTOR = [
     '#start-button','#welcome-screen','#continue-btn',
     '.completion-overlay','.hall-of-fame-overlay','#tutorial-screen',
-    '#controls','#practice-controls','#language-btn','#sfx-btn','#help-btn'
+    '#controls','#practice-controls','#language-btn','#sfx-btn'
   ].join(',');
 
   function resetTouchState(){
@@ -1853,7 +1862,6 @@ window.addEventListener('DOMContentLoaded',()=>{
  updateUIText();
  initLanguageButton();
  initSfxButton();
- initHelpButton();
  addTutorialCloseButton();
  showWelcomeScreen();
  refreshHofTexts();
